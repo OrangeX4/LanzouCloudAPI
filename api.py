@@ -34,7 +34,8 @@ def get_zhilian(share_url):
     }
     downloads_page = session.get(url=downloads_url, headers=headers).text
     try:
-        sign = re.search('sign.{89}', downloads_page).group()[7:89]
+        # sign = re.search('sign.{89}', downloads_page).group()[7:89]
+        sign = re.search('var ajaxdata = \'.{0,100}\';', downloads_page).group()[16:-2]
     except:
         sign = re.search('var ajaxup = \'.{0,100}\';', downloads_page).group()[13:-2]
 
