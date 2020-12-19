@@ -1,9 +1,17 @@
 import requests
 import bs4
 import re
+from time import sleep
 
 session = requests.session()
 
+def remove_notes(html: str) -> str:
+    """删除网页的注释"""
+    # 去掉 html 里面的 // 和 <!-- --> 注释，防止干扰正则匹配提取数据
+    # 蓝奏云的前端程序员喜欢改完代码就把原来的代码注释掉,就直接推到生产环境了 =_=
+    html = re.sub(r'<!--.+?-->|\s+//\s*.+', '', html)  # html 注释
+    html = re.sub(r'(.+?[,;])\s*//.+', r'\1', html)  # js 注释
+    return html
 
 def get_zhilian(share_url):
     index_url = 'https://www.lanzous.com'
@@ -48,7 +56,26 @@ def get_zhilian(share_url):
     }
     file_data = session.post(url=ajaxm_url, data=data, headers=headers_d).json()
     zhilian = str(file_data['dom']) + '/file/' + str(file_data['url']) + '='
-    return zhilian
+    fake_url = zhilian  # 假直连，存在流量异常检测
+    # download_page = self._get(fake_url, allow_redirects=False)
+    download_page = session.get(url=fake_url, headers=headers, allow_redirects=False)
+    if not download_page:
+        return ''
+    download_page_html = remove_notes(download_page.text)
+    if '网络异常' not in download_page_html:  # 没有遇到验证码
+        return(download_page.headers['Location'])
+    else:  # 遇到验证码，验证后才能获取下载直链
+        file_token = re.findall("'file':'(.+?)'", download_page_html)[0]
+        file_sign = re.findall("'sign':'(.+?)'", download_page_html)[0]
+        check_api = 'https://vip.d0.baidupan.com/file/ajax.php'
+        post_data = {'file': file_token, 'el': 2, 'sign': file_sign}
+        sleep(2)  # 这里必需等待2s, 否则直链返回 ?SignError
+        # resp = self._post(check_api, post_data)
+        resp = session.post(url=check_api, data=post_data, headers=headers)
+        direct_url = resp.json()['url']
+        if not direct_url:
+            return ''
+        return direct_url
 
 
 if __name__ == '__main__':
@@ -57,3 +84,4 @@ if __name__ == '__main__':
         i = i + 1
         print(i)
         print(get_zhilian('https://www.lanzous.com/i6aa3hg'))
+    # print(get_zhilian('https://www.lanzous.com/i6aa3hg'))
